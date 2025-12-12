@@ -1,5 +1,5 @@
 # Use Node.js with Puppeteer support
-FROM ghcr.io/puppeteer/puppeteer:21.6.1
+FROM ghcr.io/puppeteer/puppeteer:24.2.0
 
 # Set working directory
 WORKDIR /app
@@ -23,3 +23,4 @@ EXPOSE 3000
 
 # Start the application
 CMD ["node", "index.js"]
+
