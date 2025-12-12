@@ -371,7 +371,8 @@ app.post('/generate-bulk', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate QR codes', details: error.message });
   }
 });
-
+console.log("PORT ENV:", process.env.PORT);
 app.listen(PORT, () => {
   console.log(`QR Microservice running on port ${PORT}`);
 });
+
