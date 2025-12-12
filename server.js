@@ -1,85 +1,82 @@
+// server.js
 import express from "express";
-import puppeteer from "puppeteer";
 import bodyParser from "body-parser";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import Chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+import QRCodeStyling from "qr-code-styling-node";
 
 const app = express();
 app.use(bodyParser.json({ limit: "10mb" }));
 
 app.post("/generate", async (req, res) => {
   try {
-    const { options, output } = req.body;
+    const options = req.body.options || req.body; // accept both shapes
 
-    if (!options) {
-      return res.status(400).json({ error: "Missing 'options' field" });
-    }
-
+    // Launch puppeteer-core using sparticuz chromium
     const browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: Chromium.args,
+      executablePath: await Chromium.executablePath(),
+      headless: Chromium.headless,
+      defaultViewport: null,
     });
 
     const page = await browser.newPage();
 
-    // Load qr-code-styling library
+    // Create a minimal page and generate QR inside the page context.
     await page.setContent(`
       <html>
-        <head>
-          <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
-        </head>
-        <body>
-          <div id="qr"></div>
-          <script>
-            window.options = ${JSON.stringify(options)};
-          </script>
-        </body>
+      <head>
+        <meta charset="utf-8"/>
+        <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+      </head>
+      <body>
+        <div id="qr"></div>
+        <script>
+          window._options = ${JSON.stringify(options)};
+        </script>
+      </body>
       </html>
-    `);
+    `, { waitUntil: "networkidle0" });
 
-    await page.waitForSelector("#qr");
-
-    // Generate the QR code inside browser
-    const result = await page.evaluate(async () => {
-      const qr = new QRCodeStyling(window.options);
+    // Evaluate in page to let qr-code-styling render and return base64
+    const base64 = await page.evaluate(async () => {
+      const opts = window._options || {};
+      // Ensure type defaults
+      const type = (opts.type || "png").toLowerCase();
+      const qr = new QRCodeStyling(opts);
       await qr.append(document.getElementById("qr"));
-      const type = window.options.type || "png";
-      const buffer = await qr.getRawData(type);
-      return buffer.toString("base64");
+      const raw = await qr.getRawData(type); // returns Buffer in browser env shim
+      // In puppeteer evaluate the buffer can be returned as base64 string:
+      return typeof raw === "string" ? raw : raw.toString("base64");
     });
 
     await browser.close();
 
-    const mimeTypes = {
+    // Determine mime
+    const format = (options.type || "png").toLowerCase();
+    const mimes = {
       png: "image/png",
       svg: "image/svg+xml",
       jpeg: "image/jpeg",
+      jpg: "image/jpeg",
       webp: "image/webp",
-      pdf: "application/pdf",
+      pdf: "application/pdf"
     };
+    const mime = mimes[format] || "image/png";
 
-    const format = output || options.type || "png";
+    // If the string already contains data URI, strip it
+    const b64 = base64.startsWith("data:") ? base64.split(",")[1] : base64;
 
-    res.json({
-      success: true,
-      format,
-      qr_code: `data:${mimeTypes[format]};base64,${result}`,
-    });
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.toString(),
-    });
+    res.setHeader("Content-Type", mime);
+    const buffer = Buffer.from(b64, "base64");
+    res.send(buffer);
+  } catch (err) {
+    console.error("Generate error:", err);
+    res.status(500).json({ error: err.message || String(err) });
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("QR Code Microservice Running ✔");
-});
+app.get("/", (req, res) => res.send("QR microservice running"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`QR Microservice running on ${PORT}`));
+app.listen(PORT, () => console.log(`Listening on ${PORT}`));
