@@ -1,53 +1,47 @@
 import express from "express";
 import bodyParser from "body-parser";
-import QRCodeStyling from "qr-code-styling-node";
+import puppeteer from "puppeteer";
 
 const app = express();
 app.use(bodyParser.json({ limit: "10mb" }));
 
 app.post("/generate", async (req, res) => {
-  try {
-    const options = req.body;
+  const options = req.body;
 
-    const qr = new QRCodeStyling({
-      width: options.size || 400,
-      height: options.size || 400,
-      data: options.data || "https://example.com",
-      type: options.format || "png",
-      dotsOptions: {
-        type: options.dotStyle || "square",
-        color: options.color || "#000000"
-      },
-      backgroundOptions: {
-        color: options.bgColor || "#ffffff"
-      },
-      cornersSquareOptions: {
-        type: options.cornerSquareStyle || "square",
-        color: options.color || "#000000"
-      },
-      cornersDotOptions: {
-        type: options.cornerDotStyle || "dot",
-        color: options.color || "#000000"
-      },
-      qrOptions: {
-        errorCorrectionLevel: options.errorCorrectionLevel || "H"
-      }
-    });
+  const browser = await puppeteer.launch({
+    headless: "new",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
 
-    const buffer = await qr.getRawData(options.format || "png");
+  const page = await browser.newPage();
 
-    res.setHeader("Content-Type", `image/${options.format || "png"}`);
-    res.send(buffer);
+  await page.setContent(`
+    <html>
+      <body>
+        <div id="qr"></div>
+        <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+        <script>
+          const opts = ${JSON.stringify(options)};
+          const qr = new QRCodeStyling(opts);
+          qr.append(document.getElementById("qr"));
+          qr.getRawData(opts.type || "png").then(data => {
+            window.result = data.toString("base64");
+          });
+        </script>
+      </body>
+    </html>
+  `);
 
-  } catch (error) {
-    console.error("QR generation error:", error);
-    res.status(500).json({ error: error.message });
-  }
+  await page.waitForFunction(() => window.result);
+
+  const base64 = await page.evaluate(() => window.result);
+
+  await browser.close();
+
+  res.json({
+    success: true,
+    qr_code: "data:image/png;base64," + base64
+  });
 });
 
-app.get("/", (req, res) => {
-  res.send("QR microservice is running");
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(3000, () => console.log("QR service running on port 3000"));
