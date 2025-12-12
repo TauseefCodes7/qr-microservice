@@ -8,6 +8,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Root endpoint (for Railway + browser check)
+app.get('/', (req, res) => {
+  res.send("QR Microservice is running");
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -371,8 +376,9 @@ app.post('/generate-bulk', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate QR codes', details: error.message });
   }
 });
+
 console.log("PORT ENV:", process.env.PORT);
-app.listen(PORT, () => {
+
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`QR Microservice running on port ${PORT}`);
 });
-
