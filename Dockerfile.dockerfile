@@ -1,26 +1,21 @@
-# Use Node.js with Puppeteer support
-FROM ghcr.io/puppeteer/puppeteer:24.2.0
+# Use Puppeteer's official image WITH Chromium preinstalled
+FROM ghcr.io/puppeteer/puppeteer:latest
 
-# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
-# Copy application code
+# Copy source code
 COPY . .
 
-# Set environment variables
-ENV PORT=3000
+# Puppeteer environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Expose port
 EXPOSE 3000
 
-# Start the application
 CMD ["node", "index.js"]
-
