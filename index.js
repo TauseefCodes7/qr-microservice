@@ -86,16 +86,16 @@ app.post("/generate", async (req, res) => {
     const ecLevelMap = { L: "L", M: "M", Q: "Q", H: "H" };
 
     // Launch Chrome
-    browser = await puppeteer.launch({
-      headless: "new",
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-      args: [
+    const browser = await puppeteer.launch({
+    headless: "new",
+    args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        "--disable-gpu",
         "--disable-dev-shm-usage",
-      ],
+        "--disable-gpu"
+      ]
     });
+
 
     const page = await browser.newPage();
     await page.setViewport({ width: size + 100, height: size + 100 });
@@ -178,3 +178,4 @@ app.post("/generate", async (req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ QR Microservice running on port ${PORT}`);
 });
+
